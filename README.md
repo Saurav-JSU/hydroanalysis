@@ -138,7 +138,9 @@ graph TD
     E --> F[disaggregate_to_half_hourly()]
     A2[read_discharge_data()] --> G[identify_flood_events()]
     G --> H[plot_discharge()]
+```
 
+---
 
 ## 📁 Project Structure
 
