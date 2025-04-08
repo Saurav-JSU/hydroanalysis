@@ -129,16 +129,7 @@ python cli.py create-high-resolution \
 
 ## 🔁 Workflow Overview
 
-```mermaid
-graph TD
-    A[read_precipitation_data()] --> B[calculate_accuracy_metrics()]
-    B --> C[rank_datasets()]
-    C --> D[calculate_scaling_factors()]
-    D --> E[apply_scaling_factors()]
-    E --> F[disaggregate_to_half_hourly()]
-    A2[read_discharge_data()] --> G[identify_flood_events()]
-    G --> H[plot_discharge()]
-```
+<pre>``mermaid graph TD A[read_precipitation_data()] --> B[calculate_accuracy_metrics()] B --> C[rank_datasets()] C --> D[calculate_scaling_factors()] D --> E[apply_scaling_factors()] E --> F[disaggregate_to_half_hourly()] A2[read_discharge_data()] --> G[identify_flood_events()] G --> H[plot_discharge()] ``` </pre>
 
 ---
 
