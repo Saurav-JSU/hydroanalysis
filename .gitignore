@@ -1,0 +1,55 @@
+# ----------------------
+# Python-related ignores
+# ----------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment folders
+.env
+.venv/
+env/
+venv/
+
+# Environment variable and config files
+*.env
+*.ini
+*.cfg
+
+# ----------------------
+# Jupyter Notebook files
+# ----------------------
+.ipynb_checkpoints/
+
+# ----------------------
+# Operating System files
+# ----------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------
+# Project-specific ignores
+# ----------------------
+
+# Ignore the entire data folder (e.g., sensitive or large datasets)
+data/
+
+# Ignore results or outputs
+results/
+output/
+*.log
+*.tmp
+*.bak
+
+# VSCode settings (optional)
+.vscode/
+
+# ----------------------
+# Other
+# ----------------------
+# Ignore compiled CLI executables or build artifacts
+dist/
+build/
+*.egg-info/
