@@ -1,208 +1,172 @@
 
-# HydroAnalysis: A Modular Hydrological Data Analysis Framework
+# HydroAnalysis: Modular Hydrological Data Analysis Toolkit
 
-HydroAnalysis is a modular Python package for hydrological data analysis, specifically designed for tasks such as precipitation dataset comparison, discharge-based flood event analysis, precipitation correction, temporal disaggregation, and insightful visualization. It is intended for research and operational workflows involving observed and modeled hydrometeorological data.
-
----
-
-## 📦 Features
-
-- 📈 Read and preprocess discharge & precipitation data from Excel/CSV
-- 🌊 Identify and analyze flood events from discharge records
-- ☔ Compare multiple precipitation datasets against observed data
-- 🔧 Apply scaling-based corrections to model precipitation
-- ⏱️ Disaggregate hourly precipitation data to half-hourly resolution
-- 🗺️ Visualize station locations and spatial scaling patterns
-- 📊 Create comparison and time series plots
-- 🔀 Command-line interface for reproducible workflows
+HydroAnalysis is a flexible Python-based framework for conducting comprehensive hydrological data analysis, with support for **precipitation correction**, **flood event identification**, **dataset comparison**, **temporal disaggregation**, and **visualization**. The toolkit is especially suited for workflows involving **observed and satellite-derived** precipitation or discharge datasets.
 
 ---
 
-## 🛠️ Installation
+## 🔧 What This Toolkit Can Do
 
-```bash
-git clone https://github.com/Saurav-JSU/hydroanalysis.git
-cd hydroanalysis
-pip install -r requirements.txt
+- ✅ Read precipitation and discharge data from `.csv` or `.xlsx`
+- 🌊 Detect and analyze flood events based on discharge
+- 📊 Compare observed vs. modeled precipitation at multiple stations
+- ⚙️ Apply linear corrections (scaling) to model outputs
+- ⏱️ Disaggregate hourly precipitation into half-hourly
+- 🗺️ Map station metadata and spatially visualize scaling factors
+- 📈 Create rich time series and scatter plots
+- 🖥️ Run interactively in Python or via CLI for automation
+
+---
+
+## 📁 Directory Structure & Data Organization
+
+Organize your project like this:
+
+```
+project/
+├── data/
+│   ├── discharge.csv
+│   ├── observed_precip.xlsx
+│   ├── model1.csv
+│   ├── model2.csv
+│   └── station_metadata.csv
+├── results/
+│   └── [outputs go here]
+├── config/
+│   └── config.yaml (optional)
+├── hydroanalysis/
+│   └── [core package files]
+└── cli.py
 ```
 
 ---
 
-## 📂 Input Requirements
+## 📥 Input File Formats
 
-HydroAnalysis supports both `.csv` and `.xlsx` formats.
+### 1. Discharge Data (`.csv` or `.xlsx`)
+- Required columns: `Date`, `Discharge`
+```csv
+Date,Discharge
+2020-01-01,125.3
+2020-01-02,133.8
+```
 
-### 1. **Discharge Data**
-- **Required Columns**: `Date`, `Discharge`
-- Optional: Multiple stations (each as a separate column), or pass `station_id`
-- Format:
-    ```csv
-    Date,Discharge
-    2020-01-01,123.4
-    2020-01-02,130.1
-    ```
+### 2. Precipitation Data
+- Required columns: `Date`, `Station_ABC`, `Station_DEF`, ...
+```csv
+Date,Station_ABC,Station_DEF
+2020-01-01,4.2,3.9
+2020-01-02,6.1,4.5
+```
 
-### 2. **Precipitation Data**
-- **Required Columns**: `Date`, `Station_ABC`, `Station_DEF`, ...
-- Format:
-    ```csv
-    Date,Station_ABC,Station_DEF
-    2020-01-01,3.4,2.1
-    2020-01-02,5.7,3.3
-    ```
-
-### 3. **Station Metadata**
-- Required for maps and spatial analyses.
-- **Columns**: `Station_ID`, `Latitude`, `Longitude`, (`Type` optional)
-- Format:
-    ```csv
-    Station_ID,Latitude,Longitude,Type
-    Station_ABC,27.71,85.32,Precip
-    Station_DEF,27.72,85.30,Discharge
-    ```
+### 3. Station Metadata
+- Columns: `Station_ID`, `Latitude`, `Longitude`, [`Type` optional]
+```csv
+Station_ID,Latitude,Longitude,Type
+Station_ABC,27.7,85.3,Precip
+Station_DEF,27.8,85.2,Discharge
+```
 
 ---
 
-## 🚀 Usage
+## 🚀 How to Run the Code
 
-### Python API Example
-
+### 🔁 Option 1: Use the Python API
 ```python
 from hydroanalysis.core.data_io import read_precipitation_data
 from hydroanalysis.precipitation.comparison import calculate_accuracy_metrics
 
-obs = read_precipitation_data("observed.xlsx")
-pred = read_precipitation_data("model_output.xlsx")
-
-metrics, merged = calculate_accuracy_metrics(obs, pred)
-print(metrics)
+obs_df = read_precipitation_data("data/observed_precip.xlsx")
+pred_df = read_precipitation_data("data/model1.csv")
+metrics, merged = calculate_accuracy_metrics(obs_df, pred_df)
 ```
 
----
+### 🔁 Option 2: Use the Command Line Interface (CLI)
 
-## ⚙️ CLI Usage
+> 🔧 CLI Entry point: `cli.py`
 
-Run any of these directly from your terminal:
-
-### 1. **Flood Event Analysis**
 ```bash
-python cli.py flood-events \
-  --discharge path/to/discharge.csv \
-  --precipitation path/to/precip.csv \
-  --station Station_ABC \
-  --percentile 95 \
-  --duration 2 \
-  --buffer 7 \
-  --output results/floods
+python cli.py [command] [--arguments]
 ```
 
-### 2. **Dataset Comparison**
+---
+
+## 🔧 CLI Commands & Tasks
+
+### 🔹 1. Identify and Analyze Flood Events
 ```bash
-python cli.py compare-datasets \
-  --observed path/to/observed.csv \
-  --datasets path/to/model1.csv path/to/model2.csv \
-  --dataset-names GPM CHIRPS \
-  --metadata station_metadata.csv \
-  --output results/comparison
+python cli.py flood-events   --discharge data/discharge.csv   --precipitation data/observed_precip.xlsx   --station Station_DEF   --percentile 95   --duration 2   --buffer 7   --output results/floods
 ```
 
-### 3. **Correction**
+### 🔹 2. Compare Precipitation Datasets
 ```bash
-python cli.py correct-precipitation \
-  --datasets-dir results/comparison \
-  --metadata station_metadata.csv \
-  --output results/corrected \
-  --monthly-factors
+python cli.py compare-datasets   --observed data/observed_precip.xlsx   --datasets data/model1.csv data/model2.csv   --dataset-names GPM CHIRPS   --metadata data/station_metadata.csv   --output results/comparison
 ```
 
-### 4. **High-Resolution Disaggregation**
+### 🔹 3. Apply Correction (Scaling Factors)
 ```bash
-python cli.py create-high-resolution \
-  --datasets-dir results/comparison \
-  --dataset-files model1.csv model2.csv \
-  --dataset-names GPM CHIRPS \
-  --metadata station_metadata.csv \
-  --output results/highres
+python cli.py correct-precipitation   --datasets-dir results/comparison   --metadata data/station_metadata.csv   --output results/corrected   --monthly-factors
+```
+
+### 🔹 4. Create High-Resolution (Half-Hourly) Data
+```bash
+python cli.py create-high-resolution   --datasets-dir results/comparison   --dataset-files data/model1.csv data/model2.csv   --dataset-names GPM CHIRPS   --metadata data/station_metadata.csv   --output results/highres
 ```
 
 ---
 
-## 🔁 Workflow Overview
+## ⚙️ Flexibility & Extensibility
 
-```mermaid
-graph TD
-    A[read_precipitation_data()] --> B[calculate_accuracy_metrics()]
-    B --> C[rank_datasets()]
-    C --> D[calculate_scaling_factors()]
-    D --> E[apply_scaling_factors()]
-    E --> F[disaggregate_to_half_hourly()]
-    A2[read_discharge_data()] --> G[identify_flood_events()]
-    G --> H[plot_discharge()]
-```
+### You Can:
+- Run only the tasks you want (each command is independent).
+- Use CLI for batch processing or API for interactive analysis.
+- Plug in your own datasets by matching the column format.
+- Modify thresholds, station selections, and file paths as needed.
+- Extend the config via `hydroanalysis/config.py` or a custom `config.yaml`.
 
 ---
 
-## 📁 Project Structure
+## 📊 Visualizations You Get
 
-```
-hydroanalysis/
-│
-├── core/
-│   ├── data_io.py
-│   ├── utils.py
-├── discharge/
-│   └── flood_events.py
-├── precipitation/
-│   ├── comparison.py
-│   ├── correction.py
-│   └── disaggregation.py
-├── visualization/
-│   ├── comparison_plots.py
-│   ├── timeseries.py
-│   └── maps.py
-├── cli.py
-└── config/
-    └── config.yaml
-```
+- 📈 Time series of discharge and precipitation
+- 📉 Comparison scatter plots (with RMSE, MAE, KGE, etc.)
+- 🗺️ Station location maps
+- 🧭 Spatial distribution of scaling factors
+- 🧾 Ranked dataset performance summaries
 
 ---
 
-## 📊 Visualization Examples
+## 🧠 Tips & Best Practices
 
-- **Comparison Scatter Plots**
-- **Time Series (Precipitation & Discharge)**
-- **Flood Peak Annotation**
-- **Scaling Factor Maps**
-- **Best Dataset Pie Charts**
-
----
-
-## ✅ Best Practices
-
-- Make sure all files have a `Date` column in `YYYY-MM-DD` format.
-- Use consistent station names across datasets.
-- Validate your metadata to include lat/lon.
-- Use CLI for reproducibility and batch processing.
-- Log files will be saved as defined in `CONFIG`.
+- ✅ Ensure your `Date` column is parseable (`YYYY-MM-DD`)
+- ✅ All datasets should span the **same date range** for comparison
+- ❌ Avoid NaNs unless you handle them in preprocessing
+- 🧪 Test with a few stations before scaling up
+- 🛠️ Enable detailed logs in `CONFIG` for debugging
 
 ---
 
-## 🧠 Future Enhancements
+## 🙋 FAQ
 
-- Support for netCDF inputs
-- Snowmelt and evapotranspiration modules
-- Integration with USGS API and GEE exports
+- **Q: Can I run everything with one command?**  
+  Not currently, but you can chain the CLI commands in a shell script or Python driver.
+
+- **Q: Can I use only a part of this package?**  
+  Absolutely. Every module is callable independently.
+
+- **Q: Does this support netCDF?**  
+  Not yet. Planned for future releases.
 
 ---
 
-## 📬 Contact
+## 🧑‍💻 Maintainer
 
 **Saurav Bhattarai**  
 Graduate Researcher, Jackson State University  
-Feel free to raise issues or feature requests!
+📬 Reach out for issues, collaborations, or suggestions.
 
 ---
 
 ## 📄 License
 
-MIT License – see the `LICENSE` file for details.
+MIT License — See `LICENSE` file for details.
