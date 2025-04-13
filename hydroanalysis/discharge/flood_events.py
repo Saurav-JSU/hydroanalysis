@@ -150,21 +150,83 @@ def extract_precipitation_for_flood(precip_data, flood_event):
     """
     # Make sure date is datetime
     precip_data = precip_data.copy()
-    if 'Date' in precip_data.columns:
-        precip_data['Date'] = pd.to_datetime(precip_data['Date'])
     
-        # Filter precipitation data for this flood period
-        flood_precip = precip_data[(precip_data['Date'] >= flood_event['buffer_start_date']) & 
-                                  (precip_data['Date'] <= flood_event['buffer_end_date'])]
-    elif 'datetime' in precip_data.columns:
-        precip_data['datetime'] = pd.to_datetime(precip_data['datetime'])
+    # Check for date column with flexible naming
+    date_col = None
+    
+    # First, try standard date column names
+    for col_name in ['Date', 'datetime', 'date', 'Datetime', 'DATE']:
+        if col_name in precip_data.columns:
+            date_col = col_name
+            break
+    
+    # If no standard date column found, try to identify a date-like column
+    if date_col is None:
+        # Look for columns that might be dates
+        for col in precip_data.columns:
+            # Skip columns we've identified as precipitation data
+            if str(col).startswith('Station_'):
+                continue
+                
+            # Try to convert to datetime to check if it's a date column
+            try:
+                # Check a sample to see if it can be converted to datetime
+                sample = precip_data[col].iloc[0]
+                if pd.to_datetime(sample, errors='coerce') is not pd.NaT:
+                    date_col = col
+                    logger.info(f"Identified column '{col}' as potential date column")
+                    break
+            except:
+                continue
+    
+    # If we still don't have a date column, check if there are columns called 'year', 'month', 'day'
+    if date_col is None:
+        year_col = None
+        month_col = None
+        day_col = None
         
-        # Filter precipitation data for this flood period
-        flood_precip = precip_data[(precip_data['datetime'] >= flood_event['buffer_start_date']) & 
-                                  (precip_data['datetime'] <= flood_event['buffer_end_date'])]
-    else:
+        for col in precip_data.columns:
+            col_str = str(col).lower()
+            if 'year' in col_str:
+                year_col = col
+            elif 'month' in col_str:
+                month_col = col
+            elif 'day' in col_str:
+                day_col = col
+        
+        # If we have year, month, and day, create a date column
+        if year_col is not None and month_col is not None and day_col is not None:
+            logger.info(f"Creating Date column from {year_col}, {month_col}, and {day_col}")
+            
+            try:
+                # Convert components to numeric
+                year = pd.to_numeric(precip_data[year_col], errors='coerce')
+                month = pd.to_numeric(precip_data[month_col], errors='coerce')
+                day = pd.to_numeric(precip_data[day_col], errors='coerce')
+                
+                # Create date column
+                precip_data['Date'] = pd.to_datetime(
+                    {'year': year, 'month': month, 'day': day}, 
+                    errors='coerce'
+                )
+                date_col = 'Date'
+            except Exception as e:
+                logger.error(f"Failed to create Date column: {e}")
+    
+    if date_col is None:
         logger.error("Precipitation data must have a 'Date' or 'datetime' column")
         return pd.DataFrame()
+    
+    # Ensure date is datetime
+    precip_data[date_col] = pd.to_datetime(precip_data[date_col])
+    
+    # Filter precipitation data for this flood period
+    flood_precip = precip_data[(precip_data[date_col] >= flood_event['buffer_start_date']) & 
+                              (precip_data[date_col] <= flood_event['buffer_end_date'])]
+    
+    # If 'Date' isn't already a column name, add it for consistency
+    if date_col != 'Date':
+        flood_precip = flood_precip.rename(columns={date_col: 'Date'})
     
     return flood_precip
 

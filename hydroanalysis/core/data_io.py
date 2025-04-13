@@ -105,8 +105,9 @@ def _read_station_discharge_excel(file_path, station_id, sheet_name):
     
     # Get headers to find station column
     headers = list(next(sheet.values))
+    headers_str = [str(h) for h in headers]
     try:
-        station_col_idx = headers.index(station_id)
+        station_col_idx = headers_str.index(str(station_id))
     except ValueError:
         logger.error(f"Station {station_id} not found in headers")
         return None
@@ -203,22 +204,120 @@ def read_precipitation_data(file_path, sheet_name=None):
     # Ensure 'datetime' column is datetime if it exists
     if 'datetime' in df.columns and not pd.api.types.is_datetime64_any_dtype(df['datetime']):
         df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+def read_precipitation_data(file_path, sheet_name=None):
+    """
+    Read precipitation data from Excel or CSV files.
+    
+    Parameters
+    ----------
+    file_path : str
+        Path to the data file
+    sheet_name : str, optional
+        Name of the sheet for Excel files
+        
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with precipitation data
+    """
+    logger.info(f"Reading precipitation data from {file_path}")
+    
+    file_ext = os.path.splitext(file_path)[1].lower()
+    
+    try:
+        if file_ext in ['.xlsx', '.xls']:
+            if sheet_name:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+            else:
+                # Try to discover the right sheet
+                wb = load_workbook(file_path, read_only=True)
+                possible_sheets = ['precipitation', 'Precipitation', 'rainfall', 'Rainfall', 
+                                  'Complete', 'Daily']
+                
+                for sheet in possible_sheets:
+                    if sheet in wb.sheetnames:
+                        logger.info(f"Found precipitation sheet: {sheet}")
+                        df = pd.read_excel(file_path, sheet_name=sheet)
+                        break
+                else:
+                    # If no matching sheet found
+                    logger.warning("No precipitation sheet found. Using first sheet.")
+                    df = pd.read_excel(file_path, sheet_name=0)
+        
+        elif file_ext == '.csv':
+            # Read from CSV
+            df = pd.read_csv(file_path)
+        else:
+            logger.error(f"Unsupported file extension: {file_ext}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error reading precipitation data: {e}")
+        return None
+    
+    # Ensure 'Date' column is datetime
+    if 'Date' in df.columns and not pd.api.types.is_datetime64_any_dtype(df['Date']):
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    
+    # Ensure 'datetime' column is datetime if it exists
+    if 'datetime' in df.columns and not pd.api.types.is_datetime64_any_dtype(df['datetime']):
+        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+    
+    # Safely find station columns with proper type checking
+    station_columns = []
+    for col in df.columns:
+        # Make sure column name is a string before checking if 'Station_' is in it
+        if isinstance(col, str) and 'Station_' in col:
+            station_columns.append(col)
+    
+    # If no station columns were found, try to identify precipitation columns or create them
+    if not station_columns:
+        logger.warning("No 'Station_' columns found. Trying to identify precipitation columns.")
+        
+        # Look for columns that might contain precipitation data (exclude Date/datetime columns)
+        potential_precip_cols = [col for col in df.columns 
+                                if col not in ['Date', 'datetime', 'time', 'index']]
+        
+        # If we have potential precipitation columns, rename them with Station_ prefix
+        if potential_precip_cols:
+            # Make a copy of the DataFrame to avoid modifying the original
+            df = df.copy()
+            
+            # Rename columns with Station_ prefix
+            rename_dict = {col: f"Station_{col}" for col in potential_precip_cols}
+            df = df.rename(columns=rename_dict)
+            
+            # Update station_columns list
+            station_columns = [f"Station_{col}" for col in potential_precip_cols]
+            
+            logger.info(f"Renamed {len(potential_precip_cols)} columns with Station_ prefix.")
     
     # Data validation - basic checks
     extreme_value_threshold = CONFIG['comparison']['extreme_value_threshold']
-    station_columns = [col for col in df.columns if 'Station_' in col]
     
+    # Now check for negative and extreme values with proper type handling
     for station in station_columns:
-        # Check for negative values
-        neg_count = (df[station] < 0).sum()
-        if neg_count > 0:
-            logger.warning(f"Found {neg_count} negative values in {station}. Replacing with zeros.")
-            df.loc[df[station] < 0, station] = 0
+        # First, try to convert column to numeric if it's not already
+        if not pd.api.types.is_numeric_dtype(df[station]):
+            # Convert to numeric, coercing errors to NaN
+            df[station] = pd.to_numeric(df[station], errors='coerce')
+            logger.info(f"Converted {station} to numeric data type.")
         
-        # Check for unrealistically high values
-        extreme_count = (df[station] > extreme_value_threshold).sum()
-        if extreme_count > 0:
-            logger.warning(f"Found {extreme_count} extreme values (>{extreme_value_threshold}mm) in {station}.")
+        # Now check for negative values (safely)
+        try:
+            neg_mask = df[station] < 0
+            neg_count = neg_mask.sum()
+            if neg_count > 0:
+                logger.warning(f"Found {neg_count} negative values in {station}. Replacing with zeros.")
+                df.loc[neg_mask, station] = 0
+            
+            # Check for unrealistically high values
+            extreme_mask = df[station] > extreme_value_threshold
+            extreme_count = extreme_mask.sum()
+            if extreme_count > 0:
+                logger.warning(f"Found {extreme_count} extreme values (>{extreme_value_threshold}mm) in {station}.")
+        except TypeError:
+            logger.warning(f"Could not perform numeric comparisons on {station}. Column may contain non-numeric data.")
     
     logger.info(f"Successfully read precipitation data with {len(df)} rows")
     

@@ -36,6 +36,11 @@ from hydroanalysis.precipitation.disaggregation import (
     disaggregate_to_half_hourly, 
     create_high_resolution_precipitation
 )
+from hydroanalysis.precipitation.download import (
+    download_precipitation_data,
+    download_flood_precipitation,
+    download_all_flood_precipitation
+)
 
 def setup_cli():
     """Set up command-line interface for HydroAnalysis package."""
@@ -80,6 +85,46 @@ def setup_cli():
     highres_parser.add_argument('--dataset-names', required=True, nargs='+', help='Names for the datasets (same order as --dataset-files)')
     highres_parser.add_argument('--metadata', help='Path to station metadata')
     highres_parser.add_argument('--output', required=True, help='Output directory for high-resolution data')
+    
+    # download-precipitation command
+    download_parser = subparsers.add_parser('download-precipitation', 
+                                            help='Download precipitation data from Earth Engine')
+    download_parser.add_argument('--metadata', required=True, 
+                                help='Path to station metadata file (CSV or Excel)')
+    download_parser.add_argument('--dataset', required=True, choices=['era5', 'gsmap', 'imerg'],
+                                help='Dataset to download (ERA5-Land, GSMaP, or IMERG)')
+    download_parser.add_argument('--start-date', required=True, 
+                                help='Start date for data download (YYYY-MM-DD)')
+    download_parser.add_argument('--end-date', required=True, 
+                                help='End date for data download (YYYY-MM-DD)')
+    download_parser.add_argument('--output', default='data', 
+                                help='Output directory for downloaded data')
+    download_parser.add_argument('--resolution', choices=['daily', 'hourly', 'both'], default='daily',
+                                help='Time resolution of output (daily, hourly, or both)')
+    download_parser.add_argument('--adjust-timezone', action='store_true',
+                                help='Adjust times for Nepal timezone (UTC+5:45)')
+    download_parser.add_argument('--nepal-convention', action='store_true',
+                                help='Use Nepal 8:45 AM recording convention for daily aggregation')
+    download_parser.add_argument('--station-id-column', default='Station_ID',
+                                help='Column name in metadata that contains station IDs')
+    
+    # download-flood-precipitation command
+    download_flood_parser = subparsers.add_parser('download-flood-precipitation', 
+                                                help='Download precipitation data for identified flood events')
+    download_flood_parser.add_argument('--floods-dir', required=True, 
+                                    help='Directory containing flood event results')
+    download_flood_parser.add_argument('--metadata', required=True, 
+                                    help='Path to station metadata file (CSV or Excel)')
+    download_flood_parser.add_argument('--dataset', required=True, choices=['era5', 'gsmap', 'imerg'],
+                                    help='Dataset to download (ERA5-Land, GSMaP, or IMERG)')
+    download_flood_parser.add_argument('--resolution', choices=['daily', 'hourly', 'both'], default='daily',
+                                    help='Time resolution of output (daily, hourly, or both)')
+    download_flood_parser.add_argument('--adjust-timezone', action='store_true',
+                                    help='Adjust times for Nepal timezone (UTC+5:45)')
+    download_flood_parser.add_argument('--nepal-convention', action='store_true',
+                                    help='Use Nepal 8:45 AM recording convention for daily aggregation')
+    download_flood_parser.add_argument('--station-id-column', default='Station_ID',
+                                    help='Column name in metadata that contains station IDs')
     
     return parser
 
@@ -391,6 +436,87 @@ def run_create_high_resolution_command(args):
     logger.info(f"High-resolution precipitation data created. Results saved to {output_dir}")
     return 0
 
+def run_download_precipitation_command(args):
+    """Execute the download-precipitation command."""
+    logger = logging.getLogger("hydroanalysis.cli")
+    
+    # Read station metadata
+    metadata_file = args.metadata
+    station_id_col = args.station_id_column
+    
+    # Use our existing read_station_metadata function
+    metadata_df = read_station_metadata(metadata_file)
+    if metadata_df is None:
+        logger.error(f"Failed to read station metadata from {metadata_file}")
+        return 1
+    
+    # Call the download function
+    hourly_df, daily_df = download_precipitation_data(
+        metadata_df=metadata_df,
+        dataset_name=args.dataset,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        output_dir=args.output,
+        adjust_nepal_timezone=args.adjust_timezone,
+        nepal_convention=args.nepal_convention,
+        resolution=args.resolution,
+        station_id_col=station_id_col
+    )
+    
+    if daily_df is None:
+        logger.error("Failed to download precipitation data")
+        return 1
+    
+    # Success message
+    if args.resolution == 'both':
+        logger.info(f"Downloaded {args.dataset} precipitation data at hourly and daily resolution")
+    else:
+        logger.info(f"Downloaded {args.dataset} precipitation data at {args.resolution} resolution")
+    
+    # Show path to output files
+    dataset_name = args.dataset
+    if args.resolution in ['daily', 'both']:
+        logger.info(f"Daily data saved to {os.path.join(args.output, f'{dataset_name}_daily_precipitation.csv')}")
+    if args.resolution in ['hourly', 'both']:
+        logger.info(f"Hourly data saved to {os.path.join(args.output, f'{dataset_name}_hourly_precipitation.csv')}")
+    
+    return 0
+
+def run_download_flood_precipitation_command(args):
+    """Execute the download-flood-precipitation command."""
+    logger = logging.getLogger("hydroanalysis.cli")
+    
+    # Read station metadata
+    metadata_file = args.metadata
+    station_id_col = args.station_id_column
+    
+    # Use our existing read_station_metadata function
+    metadata_df = read_station_metadata(metadata_file)
+    if metadata_df is None:
+        logger.error(f"Failed to read station metadata from {metadata_file}")
+        return 1
+    
+    # Download data for all flood events
+    results = download_all_flood_precipitation(
+        floods_dir=args.floods_dir,
+        metadata_df=metadata_df,
+        dataset_name=args.dataset,
+        adjust_nepal_timezone=args.adjust_timezone,
+        nepal_convention=args.nepal_convention,
+        resolution=args.resolution,
+        station_id_col=station_id_col
+    )
+    
+    # Check results
+    if not results:
+        logger.error("Failed to download precipitation data for any flood events")
+        return 1
+    
+    logger.info(f"Successfully downloaded {args.dataset} precipitation data for {len(results)} flood events")
+    logger.info(f"Data saved in each flood directory under 'gee_{args.dataset}' subfolder")
+    
+    return 0
+
 def main():
     """Main entry point for the HydroAnalysis CLI."""
     # Set up logging
@@ -408,6 +534,10 @@ def main():
         return run_correct_precipitation_command(args)
     elif args.command == 'create-high-resolution':
         return run_create_high_resolution_command(args)
+    elif args.command == 'download-precipitation':
+        return run_download_precipitation_command(args)
+    elif args.command == 'download-flood-precipitation':
+        return run_download_flood_precipitation_command(args)
     else:
         parser.print_help()
         return 0

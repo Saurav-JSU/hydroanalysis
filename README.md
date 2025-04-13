@@ -95,7 +95,7 @@ python cli.py [command] [--arguments]
 
 ### 🔹 1. Identify and Analyze Flood Events
 ```bash
-python cli.py flood-events   --discharge data/discharge.csv   --precipitation data/observed_precip.xlsx   --station Station_DEF   --percentile 95   --duration 2   --buffer 7   --output results/floods
+python cli.py flood-events   --discharge data/MDD.xlsx   --precipitation data/observed_precip.xlsx   --station "550.05"   --percentile 95   --duration 2   --buffer 7   --output results/floods
 ```
 
 ### 🔹 2. Compare Precipitation Datasets
@@ -113,7 +113,9 @@ python cli.py correct-precipitation   --datasets-dir results/comparison   --meta
 python cli.py create-high-resolution   --datasets-dir results/comparison   --dataset-files data/model1.csv data/model2.csv   --dataset-names GPM CHIRPS   --metadata data/station_metadata.csv   --output results/highres
 ```
 
----
+### 🔹 5. Download Precipitation Data for Flood Events
+```bash
+python cli.py download-flood-precipitation --floods-dir results/floods --metadata data/station_metadata.csv --dataset era5
 
 ## ⚙️ Flexibility & Extensibility
 
