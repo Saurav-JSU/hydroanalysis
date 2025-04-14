@@ -35,6 +35,7 @@ Thumbs.db
 
 # Ignore the entire data folder (e.g., sensitive or large datasets)
 data/
+notebooks/
 
 # Ignore results or outputs
 results/

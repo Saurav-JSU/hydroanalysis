@@ -115,7 +115,8 @@ python cli.py create-high-resolution   --datasets-dir results/comparison   --dat
 
 ### 🔹 5. Download Precipitation Data for Flood Events
 ```bash
-python cli.py download-flood-precipitation --floods-dir results/floods --metadata data/station_metadata.csv --dataset era5
+python cli.py download-flood-precipitation --floods-dir results/floods --metadata data/filtered_station_metadata.xslx --dataset era5 --resolution both
+```
 
 ## ⚙️ Flexibility & Extensibility
 
