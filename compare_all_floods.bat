@@ -17,12 +17,12 @@ for /d %%G in (results\floods\flood_*) do (
         set "DATASET_COUNT=0"
         
         rem Check for ERA5
-        if exist "%%G\gee_era5\hourly_precipitation.csv" (
+        if exist "%%G\gee_era5\daily_precipitation.csv" (
             rem Check if file has content (not empty)
-            for %%F in ("%%G\gee_era5\hourly_precipitation.csv") do (
+            for %%F in ("%%G\gee_era5\daily_precipitation.csv") do (
                 if %%~zF GTR 0 (
                     echo     Found ERA5 data
-                    set DATASETS=!DATASETS! "%%G\gee_era5\hourly_precipitation.csv"
+                    set DATASETS=!DATASETS! "%%G\gee_era5\daily_precipitation.csv"
                     set DATASET_NAMES=!DATASET_NAMES! ERA5
                     set /a DATASET_COUNT+=1
                 ) else (
@@ -32,12 +32,12 @@ for /d %%G in (results\floods\flood_*) do (
         )
         
         rem Check for IMERG
-        if exist "%%G\gee_imerg\hourly_precipitation.csv" (
+        if exist "%%G\gee_imerg\daily_precipitation.csv" (
             rem Check if file has content (not empty)
-            for %%F in ("%%G\gee_imerg\hourly_precipitation.csv") do (
+            for %%F in ("%%G\gee_imerg\daily_precipitation.csv") do (
                 if %%~zF GTR 0 (
                     echo     Found IMERG data
-                    set DATASETS=!DATASETS! "%%G\gee_imerg\hourly_precipitation.csv"
+                    set DATASETS=!DATASETS! "%%G\gee_imerg\daily_precipitation.csv"
                     set DATASET_NAMES=!DATASET_NAMES! IMERG
                     set /a DATASET_COUNT+=1
                 ) else (
@@ -47,12 +47,12 @@ for /d %%G in (results\floods\flood_*) do (
         )
         
         rem Check for GSMaP
-        if exist "%%G\gee_gsmap\hourly_precipitation.csv" (
+        if exist "%%G\gee_gsmap\daily_precipitation.csv" (
             rem Check if file has content (not empty)
-            for %%F in ("%%G\gee_gsmap\hourly_precipitation.csv") do (
+            for %%F in ("%%G\gee_gsmap\daily_precipitation.csv") do (
                 if %%~zF GTR 0 (
                     echo     Found GSMaP data
-                    set DATASETS=!DATASETS! "%%G\gee_gsmap\hourly_precipitation.csv"
+                    set DATASETS=!DATASETS! "%%G\gee_gsmap\daily_precipitation.csv"
                     set DATASET_NAMES=!DATASET_NAMES! GSMaP
                     set /a DATASET_COUNT+=1
                 ) else (

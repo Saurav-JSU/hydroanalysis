@@ -240,6 +240,19 @@ def run_correct_precipitation_command(args):
         logger.error(f"Invalid datasets directory: {datasets_dir}")
         return 1
     
+    # Check if this is an individual flood directory
+    is_flood_dir = os.path.basename(os.path.normpath(datasets_dir)).startswith("flood_")
+    
+    # Create output directory
+    output_dir = args.output if args.output else "corrected_precipitation"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # If this is a flood directory, use the new event-based approach
+    if is_flood_dir:
+        from hydroanalysis.precipitation.correction import run_correct_precipitation_command as run_event_correction
+        return run_event_correction(args, flood_dir=datasets_dir)
+    
+    # Otherwise, use the original approach for general correction
     # Load metrics for each dataset
     all_metrics = {}
     comparison_dfs = {}
@@ -280,29 +293,49 @@ def run_correct_precipitation_command(args):
         station_metadata = read_station_metadata(args.metadata)
     
     # Create output directory
-    output_dir = args.output if args.output else "corrected_precipitation"
     os.makedirs(output_dir, exist_ok=True)
     
     # Identify best dataset for each station
     best_datasets = identify_best_dataset_per_station(all_metrics)
     
     # Calculate scaling factors
-    scaling_factors = calculate_scaling_factors(best_datasets, comparison_dfs)
-    
-    # Save results
-    results = {
-        'best_datasets': {
-            station: {
-                'dataset': info['dataset'],
-                'metrics': info['metrics']
-            } for station, info in best_datasets.items()
-        },
-        'scaling_factors': {
-            station: {
-                'factor': info['factor']
-            } for station, info in scaling_factors.items()
+    if args.monthly_factors:
+        # Use monthly scaling factors
+        scaling_factors = calculate_monthly_scaling_factors(best_datasets, comparison_dfs)
+        
+        # Save results
+        results = {
+            'best_datasets': {
+                station: {
+                    'dataset': info['dataset'],
+                    'metrics': info['metrics']
+                } for station, info in best_datasets.items()
+            },
+            'monthly_scaling_factors': {
+                station: {
+                    'dataset': info['dataset'],
+                    'monthly_factors': info['monthly_factors']
+                } for station, info in scaling_factors.items()
+            }
         }
-    }
+    else:
+        # Use annual scaling factors
+        scaling_factors = calculate_scaling_factors(best_datasets, comparison_dfs)
+        
+        # Save results
+        results = {
+            'best_datasets': {
+                station: {
+                    'dataset': info['dataset'],
+                    'metrics': info['metrics']
+                } for station, info in best_datasets.items()
+            },
+            'scaling_factors': {
+                station: {
+                    'factor': info['factor']
+                } for station, info in scaling_factors.items()
+            }
+        }
     
     with open(os.path.join(output_dir, 'correction_factors.json'), 'w') as f:
         json.dump(results, f, indent=2)
@@ -311,6 +344,7 @@ def run_correct_precipitation_command(args):
     if station_metadata is not None:
         from hydroanalysis.visualization.maps import (
             plot_station_map, 
+            plot_best_datasets_map,
             plot_scaling_factors_map
         )
         
