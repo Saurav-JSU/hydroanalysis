@@ -30,11 +30,14 @@ from hydroanalysis.precipitation.comparison import (
 from hydroanalysis.precipitation.correction import (
     calculate_scaling_factors, 
     apply_scaling_factors, 
-    create_corrected_dataset
+    create_corrected_dataset,
+    run_correct_precipitation_command
 )
 from hydroanalysis.precipitation.disaggregation import (
-    disaggregate_to_half_hourly, 
-    create_high_resolution_precipitation
+    get_time_resolution,
+    disaggregate_to_half_hourly,
+    create_high_resolution_precipitation,
+    create_high_resolution_precipitation_from_corrected
 )
 from hydroanalysis.precipitation.download import (
     download_precipitation_data,
@@ -80,11 +83,14 @@ def setup_cli():
     
     # create-high-resolution command
     highres_parser = subparsers.add_parser('create-high-resolution', help='Create high-resolution precipitation data')
-    highres_parser.add_argument('--datasets-dir', required=True, help='Directory with comparison results')
-    highres_parser.add_argument('--dataset-files', required=True, nargs='+', help='Paths to original dataset files')
-    highres_parser.add_argument('--dataset-names', required=True, nargs='+', help='Names for the datasets (same order as --dataset-files)')
-    highres_parser.add_argument('--metadata', help='Path to station metadata')
-    highres_parser.add_argument('--output', required=True, help='Output directory for high-resolution data')
+    highres_parser.add_argument('--datasets-dir', required=True, help='Directory with flood event data')
+    highres_parser.add_argument('--output', help='Output directory for high-resolution data')
+    highres_parser.add_argument('--imerg-file', help='Path to IMERG hourly precipitation file for pattern-based disaggregation')
+    
+    # Keep these arguments for backward compatibility, but make them optional
+    highres_parser.add_argument('--dataset-files', nargs='+', help='[DEPRECATED] Paths to original dataset files')
+    highres_parser.add_argument('--dataset-names', nargs='+', help='[DEPRECATED] Names for the datasets')
+    highres_parser.add_argument('--metadata', help='[DEPRECATED] Path to station metadata')
     
     # download-precipitation command
     download_parser = subparsers.add_parser('download-precipitation', 
@@ -362,112 +368,32 @@ def run_create_high_resolution_command(args):
     """Execute the create-high-resolution command."""
     logger = logging.getLogger("hydroanalysis.cli")
     
-    # Load dataset comparison results
+    # Get dataset directory
     datasets_dir = args.datasets_dir
     if not os.path.isdir(datasets_dir):
         logger.error(f"Invalid datasets directory: {datasets_dir}")
         return 1
     
-    # Load correction factors
-    correction_file = os.path.join(datasets_dir, "correction_factors.json")
-    if not os.path.exists(correction_file):
-        correction_file = os.path.join(datasets_dir, "corrected_precipitation", "correction_factors.json")
+    # Set output directory
+    output_dir = args.output if args.output else os.path.join(datasets_dir, "highres")
     
-    if not os.path.exists(correction_file):
-        logger.error(f"Correction factors file not found. Please run 'correct-precipitation' first.")
-        return 1
-    
-    with open(correction_file, 'r') as f:
-        correction_data = json.load(f)
-    
-    best_datasets_info = correction_data.get('best_datasets', {})
-    scaling_factors_info = correction_data.get('scaling_factors', {})
-    
-    # Prepare best datasets dictionary
-    best_datasets = {}
-    for station, info in best_datasets_info.items():
-        best_datasets[station] = {
-            "dataset": info['dataset'],
-            "metrics": info['metrics']
-        }
-    
-    # Prepare scaling factors dictionary
-    scaling_factors = {}
-    for station, info in scaling_factors_info.items():
-        scaling_factors[station] = {
-            "factor": info['factor']
-        }
-    
-    # Read dataset files
-    datasets_dict = {}
-    dataset_names = args.dataset_names if args.dataset_names else None
-    
-    for i, dataset_path in enumerate(args.dataset_files):
-        if dataset_names and i < len(dataset_names):
-            dataset_name = dataset_names[i]
-        else:
-            dataset_name = os.path.basename(dataset_path).split('.')[0]
-        
-        dataset_df = read_precipitation_data(dataset_path)
-        if dataset_df is not None:
-            datasets_dict[dataset_name] = dataset_df
-        else:
-            logger.warning(f"Failed to read dataset: {dataset_path}")
-    
-    if not datasets_dict:
-        logger.error("No valid datasets could be read")
-        return 1
-    
-    # Read station metadata if provided
-    station_metadata = None
-    if args.metadata:
-        station_metadata = read_station_metadata(args.metadata)
-    
-    # Create output directory
-    output_dir = args.output
-    os.makedirs(output_dir, exist_ok=True)
+    # Get IMERG file path if provided
+    imerg_file = args.imerg_file
     
     # Create high-resolution precipitation data
+    from hydroanalysis.precipitation.disaggregation import create_high_resolution_precipitation
     high_res_data = create_high_resolution_precipitation(
-        best_datasets, 
-        scaling_factors, 
-        datasets_dict, 
-        output_dir=output_dir
+        flood_dir=datasets_dir,
+        output_dir=output_dir,
+        imerg_file=imerg_file
     )
     
-    # Create visualization
-    if high_res_data is not None:
-        from hydroanalysis.visualization.timeseries import plot_high_resolution_precip
-        
-        # Sample a 3-day period with significant precipitation
-        total_precip = high_res_data.drop('datetime', axis=1).sum()
-        station_with_most = total_precip.idxmax()
-        
-        # Group by day and find the day with most precipitation
-        high_res_data['date'] = high_res_data['datetime'].dt.date
-        daily_sums = high_res_data.groupby('date')[station_with_most].sum()
-        
-        if not daily_sums.empty:
-            max_day = daily_sums.idxmax()
-            
-            # Define 3-day window
-            start_date = pd.Timestamp(max_day) - pd.Timedelta(days=1)
-            end_date = pd.Timestamp(max_day) + pd.Timedelta(days=1)
-            
-            # Create visualization for the top 3 stations
-            top_stations = total_precip.nlargest(3).index.tolist()
-            
-            # Plot high-resolution precipitation
-            plot_high_resolution_precip(
-                high_res_data,
-                start_date=start_date,
-                end_date=end_date,
-                stations=top_stations,
-                title="Sample 3-Day High-Resolution Precipitation",
-                output_path=os.path.join(output_dir, "high_resolution_sample.png")
-            )
+    if high_res_data is None:
+        logger.error("Failed to create high-resolution precipitation data.")
+        return 1
     
-    logger.info(f"High-resolution precipitation data created. Results saved to {output_dir}")
+    logger.info(f"Successfully created high-resolution precipitation data with {len(high_res_data)} records.")
+    logger.info(f"Results saved to {output_dir}")
     return 0
 
 def run_download_precipitation_command(args):

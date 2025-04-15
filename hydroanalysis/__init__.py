@@ -45,7 +45,8 @@ from hydroanalysis.precipitation.correction import (
 from hydroanalysis.precipitation.disaggregation import (
     get_time_resolution,
     disaggregate_to_half_hourly,
-    create_high_resolution_precipitation
+    create_high_resolution_precipitation,
+    create_high_resolution_precipitation_from_corrected
 )
 
 # Import visualization tools
