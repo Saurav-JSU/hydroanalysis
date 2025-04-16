@@ -91,29 +91,7 @@ def setup_cli():
     highres_parser.add_argument('--dataset-files', nargs='+', help='[DEPRECATED] Paths to original dataset files')
     highres_parser.add_argument('--dataset-names', nargs='+', help='[DEPRECATED] Names for the datasets')
     highres_parser.add_argument('--metadata', help='[DEPRECATED] Path to station metadata')
-    
-    # download-precipitation command
-    download_parser = subparsers.add_parser('download-precipitation', 
-                                            help='Download precipitation data from Earth Engine')
-    download_parser.add_argument('--metadata', required=True, 
-                                help='Path to station metadata file (CSV or Excel)')
-    download_parser.add_argument('--dataset', required=True, choices=['era5', 'gsmap', 'imerg'],
-                                help='Dataset to download (ERA5-Land, GSMaP, or IMERG)')
-    download_parser.add_argument('--start-date', required=True, 
-                                help='Start date for data download (YYYY-MM-DD)')
-    download_parser.add_argument('--end-date', required=True, 
-                                help='End date for data download (YYYY-MM-DD)')
-    download_parser.add_argument('--output', default='data', 
-                                help='Output directory for downloaded data')
-    download_parser.add_argument('--resolution', choices=['daily', 'hourly', 'both'], default='daily',
-                                help='Time resolution of output (daily, hourly, or both)')
-    download_parser.add_argument('--adjust-timezone', action='store_true',
-                                help='Adjust times for Nepal timezone (UTC+5:45)')
-    download_parser.add_argument('--nepal-convention', action='store_true',
-                                help='Use Nepal 8:45 AM recording convention for daily aggregation')
-    download_parser.add_argument('--station-id-column', default='Station_ID',
-                                help='Column name in metadata that contains station IDs')
-    
+
     # download-flood-precipitation command
     download_flood_parser = subparsers.add_parser('download-flood-precipitation', 
                                                 help='Download precipitation data for identified flood events')

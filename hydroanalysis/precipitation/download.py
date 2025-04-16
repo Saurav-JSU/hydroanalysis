@@ -326,7 +326,7 @@ def get_hourly_precipitation_from_gee(metadata_df, start_date, end_date, dataset
     end_date: End date (datetime object) for data collection
     dataset_id: GEE dataset ID to use
     band: Band name for precipitation
-    adjust_nepal_timezone: Whether to adjust times to Nepal local time (+5:45) and recording convention
+    adjust_nepal_timezone: Whether to adjust times to Nepal local time (+5:45)
     station_id_col: Column name in metadata_df that contains station IDs
     
     Returns:
@@ -346,7 +346,7 @@ def get_hourly_precipitation_from_gee(metadata_df, start_date, end_date, dataset
     
     logger.info(f"Fetching GEE data from {start_date_str} to {end_date_str}")
     if adjust_nepal_timezone:
-        logger.info(f"(Expanded range to account for Nepal time zone and recording adjustments)")
+        logger.info(f"(Expanded range to account for Nepal time zone adjustments)")
     logger.info(f"Using dataset: {dataset_id}")
     
     # Get information about available datasets
@@ -423,24 +423,6 @@ def get_hourly_precipitation_from_gee(metadata_df, start_date, end_date, dataset
                     station_df['datetime'] = station_df['datetime'] + nepal_offset
                     logger.info(f"  Converted timestamps from UTC to Nepal time (UTC+5:45)")
                     
-                    # STEP 2: NEPAL RECORDING CONVENTION ADJUSTMENT
-                    # In Nepal, precipitation is measured at 8:45 AM local time (03:00 UTC)
-                    # and attributed to the previous day
-                    # This means that rain that falls on day X is reported on the morning of day X+1
-                    # but is attributed to day X in records
-                    
-                    # For our data to correctly match Nepal's records, precipitation from a
-                    # specific UTC day should be attributed to that same day (because Nepal
-                    # already shifts the attribution in their record-keeping)
-                    
-                    # Therefore, we don't need an additional day shift but we need to ensure
-                    # our daily aggregation cutoff matches Nepal's observation time (8:45 AM)
-                    
-                    # For hourly data, we keep the actual time but note that official Nepal records
-                    # would attribute precipitation from day X (0:00-23:59) to readings on day X+1 at 8:45 AM
-                    
-                    logger.info(f"  Adjusted timestamps for Nepal's 8:45 AM recording convention")
-                    
                     # Print updated time range for validation
                     logger.info(f"  Original time range: {original_time_range[0]} to {original_time_range[1]} (UTC)")
                     logger.info(f"  Adjusted time range: {station_df['datetime'].min()} to {station_df['datetime'].max()} (Nepal time)")
@@ -513,7 +495,7 @@ def aggregate_hourly_to_daily(hourly_df, dataset_id=None, nepal_convention=False
     Parameters:
     hourly_df: DataFrame with hourly data, with a 'datetime' column
     dataset_id: Optional - the GEE dataset ID for logging
-    nepal_convention: Whether to use Nepal's 8:45 AM recording convention for daily aggregation
+    nepal_convention: Whether to use Nepal's recording convention (shift daily totals forward by one day)
     
     Returns:
     DataFrame with daily precipitation totals
@@ -527,20 +509,10 @@ def aggregate_hourly_to_daily(hourly_df, dataset_id=None, nepal_convention=False
     
     # Create a date column based on the convention
     if nepal_convention:
-        # In Nepal, the daily cutoff is 8:45 AM, so precipitation from midnight to 8:45 AM
-        # on day X+1 is attributed to day X
-        # For this aggregation, we'll create a custom date column that shifts times after 8:45 AM
-        # to the next day to align with how precipitation is accumulated in Nepal's records
-        def get_nepal_record_date(dt):
-            # If the time is after 8:45 AM, attribute to the current day
-            # If the time is before 8:45 AM, attribute to the previous day
-            if dt.hour < 8 or (dt.hour == 8 and dt.minute < 45):
-                return (dt - pd.Timedelta(days=1)).date()
-            else:
-                return dt.date()
-        
-        df['Date'] = df['datetime'].apply(get_nepal_record_date)
-        logger.info("Using Nepal's 8:45 AM recording convention for daily aggregation")
+        # For Nepal's recording convention, ALL precipitation should be 
+        # attributed to the NEXT day to match station reporting
+        df['Date'] = df['datetime'].dt.date + pd.Timedelta(days=1)
+        logger.info("Applied Nepal's recording convention: ALL precipitation shifted to next day")
     else:
         # Standard calendar day aggregation (midnight to midnight)
         df['Date'] = df['datetime'].dt.date
@@ -593,7 +565,7 @@ def download_precipitation_data(metadata_df, dataset_name, start_date, end_date,
     end_date: End date as string 'YYYY-MM-DD' or datetime object
     output_dir: Directory to save output files
     adjust_nepal_timezone: Whether to adjust for Nepal timezone (+5:45)
-    nepal_convention: Whether to use Nepal's 8:45 AM recording convention for daily aggregation
+    nepal_convention: Whether to use Nepal's convention (shift to next day)
     resolution: 'daily' or 'hourly'
     station_id_col: Column name in metadata_df that contains station IDs
     
@@ -629,7 +601,6 @@ def download_precipitation_data(metadata_df, dataset_name, start_date, end_date,
     logger.info(f"Downloading {dataset_name} precipitation data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
     
     # Check if there's a project ID set in the environment
-    #project_id = os.environ.get('EE_PROJECT_ID', None)
     project_id = 'ee-jsuhydrolabenb'
     
     # Initialize Earth Engine
@@ -698,7 +669,7 @@ def download_flood_precipitation(flood_dir, metadata_df, dataset_name, output_di
     dataset_name: Name of dataset to download ('era5', 'gsmap', or 'imerg')
     output_dir: Directory to save output files (defaults to flood_dir if None)
     adjust_nepal_timezone: Whether to adjust for Nepal timezone (+5:45)
-    nepal_convention: Whether to use Nepal's 8:45 AM recording convention for daily aggregation
+    nepal_convention: Whether to use Nepal's recording convention (shift to next day)
     resolution: 'daily' or 'hourly'
     station_id_col: Column name in metadata_df that contains station IDs
     
@@ -750,12 +721,27 @@ def download_flood_precipitation(flood_dir, metadata_df, dataset_name, output_di
         # Save files with more descriptive names in the GEE directory
         if hourly_df is not None and not hourly_df.empty and (resolution == 'hourly' or resolution == 'both'):
             hourly_file = os.path.join(gee_dir, f'hourly_precipitation.csv')
-            hourly_df.to_csv(hourly_file, index=False)
+            
+            # Create a copy for saving with appropriate formatting
+            hourly_output = hourly_df.copy()
+            hourly_output['Date'] = hourly_output['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+            hourly_output = hourly_output.rename(columns={'datetime': 'Original_Datetime'})
+            
+            # Reorder columns to put Date first
+            cols = ['Date'] + [col for col in hourly_output.columns if col != 'Date']
+            hourly_output = hourly_output[cols]
+            
+            hourly_output.to_csv(hourly_file, index=False)
             logger.info(f"Hourly data saved to {hourly_file}")
         
         if daily_df is not None and not daily_df.empty:
             daily_file = os.path.join(gee_dir, f'daily_precipitation.csv')
-            daily_df.to_csv(daily_file, index=False)
+            
+            # Create a copy for saving with appropriate formatting
+            daily_output = daily_df.copy()
+            daily_output['Date'] = daily_output['Date'].dt.strftime('%Y-%m-%d')
+            
+            daily_output.to_csv(daily_file, index=False)
             logger.info(f"Daily data saved to {daily_file}")
         
         return hourly_df, daily_df
@@ -775,7 +761,7 @@ def download_all_flood_precipitation(floods_dir, metadata_df, dataset_name,
     metadata_df: DataFrame with station metadata
     dataset_name: Name of dataset to download ('era5', 'gsmap', or 'imerg')
     adjust_nepal_timezone: Whether to adjust for Nepal timezone (+5:45)
-    nepal_convention: Whether to use Nepal's 8:45 AM recording convention for daily aggregation
+    nepal_convention: Whether to use Nepal's recording convention (shift to next day)
     resolution: 'daily' or 'hourly'
     station_id_col: Column name in metadata_df that contains station IDs
     
